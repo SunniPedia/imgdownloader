@@ -33,59 +33,49 @@ jobs:
         env:
           POST_URL: ${{ inputs.post_url }}
         run: |
-          # যদি পোস্টে লগিন চায় তাহলে Repo তে cookies.txt আপলোড করে নিচের লাইনটা ব্যবহার করবেন
-          # gallery-dl --cookies cookies.txt --dest./img --filename "{num:>04}_{filename}.{extension}" "$POST_URL"
-
-          gallery-dl --dest./img --filename "{num:>04}_{filename}.{extension}" "$POST_URL"
+          # স্পেসটা খেয়াল করুন: --dest ./img
+          gallery-dl --dest ./img --filename "{num:>04}_{filename}.{extension}" "$POST_URL"
 
           echo "Downloaded files:"
-          find img -type f | head -n 20
+          find img -type f | head -n 50
 
       - name: Build PDF from images
         env:
           PDF_NAME: ${{ inputs.pdf_name }}
         run: |
           python3 << 'PY'
-          import os
-          import glob
+          import os, glob
           from PIL import Image
 
           pdf_name = os.environ.get("PDF_NAME", "kitab.pdf").strip()
           if not pdf_name.lower().endswith(".pdf"):
               pdf_name += ".pdf"
 
-          # img ফোল্ডারের ভিতরে যেখানেই ছবি থাকুক খুঁজে বের করবে
-          patterns = ["img/**/*.jpg", "img/**/*.jpeg", "img/**/*.png", "img/**/*.webp"]
           files = []
-          for p in patterns:
+          for p in ["img/**/*.jpg", "img/**/*.jpeg", "img/**/*.png", "img/**/*.webp"]:
               files.extend(glob.glob(p, recursive=True))
 
           files = sorted(set(files))
           print(f"Found {len(files)} images")
-
           if not files:
-              print("কোন ছবি পাওয়া যায়নি! gallery-dl ফেইল করেছে।")
               exit(1)
 
-          # ছবি গুলোকে PDF এর জন্য রেডি করা
           pil_images = []
           for f in files:
               try:
-                  im = Image.open(f).convert("RGB")
-                  pil_images.append(im)
+                  pil_images.append(Image.open(f).convert("RGB"))
               except Exception as e:
                   print(f"Skip {f}: {e}")
 
           if pil_images:
-              # প্রথম ছবি থেকে বাকি গুলো append হবে
               pil_images[0].save(pdf_name, save_all=True, append_images=pil_images[1:], quality=95)
-              print(f"PDF Created: {pdf_name} -> {os.path.getsize(pdf_name)/1024/1024:.2f} MB")
+              print(f"PDF Created: {pdf_name}")
           PY
 
-      - name: Commit Images + PDF back to repo
+      - name: Commit Images + PDF
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Added ${{ inputs.pdf_name }} + images from ${{ inputs.post_url }}"
+          commit_message: "Added ${{ inputs.pdf_name }} from FB post"
           file_pattern: |
             img/**
             *.pdf
